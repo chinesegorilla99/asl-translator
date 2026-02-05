@@ -1,0 +1,46 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+.venv/
+*.egg-info/
+dist/
+build/
+
+# Data files (large files, download separately)
+data/raw/kaggle_asl_dataset/
+
+# Model files (generated during training)
+models/saved/*.h5
+models/saved/*.pkl
+models/saved/*.pt
+
+# Environment
+.env
+.env.local
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Node/Frontend
+frontend/node_modules/
+frontend/dist/
+frontend/.cache/
+
+# Logs
+*.log
+logs/
+
+# Jupyter
+.ipynb_checkpoints/

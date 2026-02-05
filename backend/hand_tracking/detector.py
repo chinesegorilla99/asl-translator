@@ -1,0 +1,1 @@
+# Core hand detection logic.
