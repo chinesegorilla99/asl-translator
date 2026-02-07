@@ -16,17 +16,53 @@ def get_model_path() -> Path:
     return project_root / "models" / "mediapipe" / "hand_landmarker.task"
 
 
-def create_hand_detector(max_hands: int = 1, min_detection_confidence: float = 0.3):
+def create_hand_detector(max_hands: int = 1, min_detection_confidence: float = 0.1, min_tracking_confidence: float = 0.1):
     options = HandLandmarkerOptions(
         base_options=BaseOptions(model_asset_path=str(get_model_path())),
         running_mode=VisionRunningMode.IMAGE,
         num_hands=max_hands,
-        min_hand_detection_confidence=min_detection_confidence
+        min_hand_detection_confidence=min_detection_confidence,
+        min_hand_presence_confidence=min_tracking_confidence,
+        min_tracking_confidence=min_tracking_confidence
     )
     return HandLandmarker.create_from_options(options)
 
 
-def extract_landmarks_from_image(image_path: Path, detector) -> list[float] | None:
+def preprocess_image(image: np.ndarray) -> list[np.ndarray]:
+    variants = []
+    
+    padded = cv2.copyMakeBorder(image, 50, 50, 50, 50, cv2.BORDER_CONSTANT, value=[255, 255, 255])
+    variants.append(padded)
+    
+    bright = cv2.convertScaleAbs(image, alpha=1.3, beta=30)
+    variants.append(bright)
+    
+    h, w = image.shape[:2]
+    scaled = cv2.resize(image, (w * 2, h * 2))
+    variants.append(scaled)
+    
+    padded_large = cv2.copyMakeBorder(image, 100, 100, 100, 100, cv2.BORDER_CONSTANT, value=[255, 255, 255])
+    variants.append(padded_large)
+    
+    contrast = cv2.convertScaleAbs(image, alpha=1.5, beta=0)
+    variants.append(contrast)
+    
+    scaled_padded = cv2.copyMakeBorder(scaled, 50, 50, 50, 50, cv2.BORDER_CONSTANT, value=[255, 255, 255])
+    variants.append(scaled_padded)
+    
+    gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+    equalized = cv2.equalizeHist(gray)
+    equalized_bgr = cv2.cvtColor(equalized, cv2.COLOR_GRAY2BGR)
+    variants.append(equalized_bgr)
+    
+    blurred = cv2.GaussianBlur(image, (3, 3), 0)
+    sharpened = cv2.addWeighted(image, 1.5, blurred, -0.5, 0)
+    variants.append(sharpened)
+    
+    return variants
+
+
+def extract_landmarks_from_image(image_path: Path, detector, try_variants: bool = True) -> list[float] | None:
     image = cv2.imread(str(image_path))
     if image is None:
         return None
@@ -36,16 +72,27 @@ def extract_landmarks_from_image(image_path: Path, detector) -> list[float] | No
     
     results = detector.detect(mp_image)
     
-    if not results.hand_landmarks:
-        return None
+    if results.hand_landmarks:
+        hand_landmarks = results.hand_landmarks[0]
+        landmarks = []
+        for landmark in hand_landmarks:
+            landmarks.extend([landmark.x, landmark.y, landmark.z])
+        return landmarks
     
-    hand_landmarks = results.hand_landmarks[0]
-    landmarks = []
+    if try_variants:
+        for variant in preprocess_image(image)[1:]:
+            variant_rgb = cv2.cvtColor(variant, cv2.COLOR_BGR2RGB)
+            mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=variant_rgb)
+            results = detector.detect(mp_image)
+            
+            if results.hand_landmarks:
+                hand_landmarks = results.hand_landmarks[0]
+                landmarks = []
+                for landmark in hand_landmarks:
+                    landmarks.extend([landmark.x, landmark.y, landmark.z])
+                return landmarks
     
-    for landmark in hand_landmarks:
-        landmarks.extend([landmark.x, landmark.y, landmark.z])
-    
-    return landmarks
+    return None
 
 
 def extract_landmarks_from_array(image_array: np.ndarray, detector) -> list[float] | None:
