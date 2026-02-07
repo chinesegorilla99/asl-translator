@@ -1,1 +1,1 @@
-// Webcam video feed component.
+

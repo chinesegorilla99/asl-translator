@@ -1,1 +1,1 @@
-// Hand landmark visualization overlay.
+
