@@ -1,0 +1,8 @@
+Metric,Value
+Training Accuracy,1.000000
+Test Accuracy,0.919355
+Precision (Weighted),0.925002
+Recall (Weighted),0.919355
+F1 Score (Weighted),0.918579
+Number of Samples,2477
+Number of Classes,36
