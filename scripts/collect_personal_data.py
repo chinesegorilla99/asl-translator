@@ -7,10 +7,11 @@ from pathlib import Path
 import json
 from datetime import datetime
 import time
+import argparse
 
 WINDOW_NAME = "ASL Data Collection"
 LABELS = list("ABCDEFGHIJKLMNOPQRSTUVWXYZ") + [str(i) for i in range(10)]
-SAMPLES_PER_LABEL = 150
+DEFAULT_SAMPLES_PER_LABEL = 150
 COUNTDOWN_SECONDS = 3
 CAPTURE_DELAY_MS = 50
 
@@ -33,7 +34,7 @@ def normalize_landmarks(landmarks: np.ndarray) -> np.ndarray:
 
 
 class DataCollector:
-    def __init__(self):
+    def __init__(self, append_mode=False):
         project_root = Path(__file__).parent.parent
         hand_model_path = project_root / "models" / "mediapipe" / "hand_landmarker.task"
         
@@ -52,6 +53,14 @@ class DataCollector:
         
         self.all_features = []
         self.all_labels = []
+        self.append_mode = append_mode
+        
+        if append_mode and (self.output_dir / "features_raw.npy").exists():
+            existing_features = np.load(self.output_dir / "features_raw.npy")
+            existing_labels = np.load(self.output_dir / "labels.npy")
+            self.all_features = list(existing_features)
+            self.all_labels = list(existing_labels)
+            print(f"Loaded {len(self.all_features)} existing samples")
         
     def extract_landmarks(self, frame):
         rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
@@ -133,7 +142,7 @@ class DataCollector:
                     collected.append(landmarks)
                     last_capture = current_time
             
-            cv2.putText(display, "Press 'S' to skip this letter | 'Q' to quit", (20, h - 20), 
+            cv2.putText(display, "Press 'S' to skip | 'R' to redo | 'Q' to quit", (20, h - 20), 
                         cv2.FONT_HERSHEY_SIMPLEX, 0.5, (150, 150, 150), 1)
             
             cv2.imshow(WINDOW_NAME, display)
@@ -144,6 +153,9 @@ class DataCollector:
             elif key == ord('s'):
                 print(f"Skipped {label}")
                 return []
+            elif key == ord('r'):
+                print(f"Redoing {label}")
+                return "redo"
         
         print(f"Collected {len(collected)} samples for {label}")
         return collected
@@ -199,11 +211,29 @@ class DataCollector:
 
 
 def main():
+    parser = argparse.ArgumentParser(description="Collect personal ASL training data")
+    parser.add_argument("--letters", type=str, default=None,
+                        help="Specific letters to collect (e.g., 'ASMNT' for confusing letters)")
+    parser.add_argument("--samples", type=int, default=DEFAULT_SAMPLES_PER_LABEL,
+                        help=f"Samples per letter (default: {DEFAULT_SAMPLES_PER_LABEL})")
+    parser.add_argument("--append", action="store_true",
+                        help="Append to existing data instead of overwriting")
+    args = parser.parse_args()
+    
+    if args.letters:
+        target_labels = [c.upper() for c in args.letters]
+    else:
+        target_labels = LABELS
+    
+    samples_per_label = args.samples
+    
     print("=" * 60)
     print("ASL PERSONAL DATA COLLECTION")
     print("=" * 60)
     print(f"""
-This tool will collect {SAMPLES_PER_LABEL} samples for each letter/number.
+This tool will collect {samples_per_label} samples for each letter/number.
+
+{"Collecting specific letters: " + ", ".join(target_labels) if args.letters else "Collecting all letters and numbers"}
 
 Instructions:
 1. For each letter, you'll get a {COUNTDOWN_SECONDS}-second countdown
@@ -211,13 +241,14 @@ Instructions:
 3. Move your hand slightly for variation (position, angle)
 4. Press 'S' to skip a letter
 5. Press 'Q' to quit and save
+6. Press 'R' to redo the current letter
 
-The data will be saved separately from the Kaggle dataset.
+{"Mode: APPEND to existing data" if args.append else "Mode: OVERWRITE existing data"}
 """)
     
     input("Press Enter to start...")
     
-    collector = DataCollector()
+    collector = DataCollector(append_mode=args.append)
     
     cap = cv2.VideoCapture(0)
     cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1280)
@@ -228,16 +259,23 @@ The data will be saved separately from the Kaggle dataset.
     cv2.resizeWindow(WINDOW_NAME, 960, 720)
     
     try:
-        for label in LABELS:
-            samples = collector.collect_label(cap, label, SAMPLES_PER_LABEL)
+        i = 0
+        while i < len(target_labels):
+            label = target_labels[i]
+            samples = collector.collect_label(cap, label, samples_per_label)
             
             if samples is None:
                 print("\nCollection cancelled by user")
                 break
             
+            if samples == "redo":
+                continue
+            
             for sample in samples:
                 collector.all_features.append(sample)
                 collector.all_labels.append(label.lower())
+            
+            i += 1
         
         collector.save_data()
         

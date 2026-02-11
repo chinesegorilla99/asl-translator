@@ -152,7 +152,7 @@ def normalize_landmarks(landmarks: np.ndarray) -> np.ndarray:
 
 
 class PredictionSmoother:
-    def __init__(self, window_size=7, min_confidence=0.5, min_agreement=0.6):
+    def __init__(self, window_size=10, min_confidence=0.5, min_agreement=0.5):
         self.window_size = window_size
         self.min_confidence = min_confidence
         self.min_agreement = min_agreement
@@ -240,27 +240,34 @@ def draw_hand_skeleton(frame, landmarks):
     return frame
 
 
+CONFIDENCE_THRESHOLD = 0.90
+
+
 def draw_prediction(frame, prediction, confidence):
-    if prediction is None:
-        return frame
-    
     h, w = frame.shape[:2]
     
     overlay = frame.copy()
     cv2.rectangle(overlay, (0, 0), (w, 100), (30, 30, 30), -1)
     frame = cv2.addWeighted(overlay, 0.7, frame, 0.3, 0)
     
-    if confidence >= 0.8:
-        color = (0, 255, 0)
-    elif confidence >= 0.5:
-        color = (0, 255, 255)
+    if prediction is None or confidence < CONFIDENCE_THRESHOLD:
+        display_text = "Unsure"
+        color = (100, 100, 100)
+        conf_text = f"Confidence: {confidence * 100:.0f}%" if confidence > 0 else ""
     else:
-        color = (0, 100, 255)
+        display_text = prediction
+        if confidence >= 0.95:
+            color = (0, 255, 0)
+        elif confidence >= 0.90:
+            color = (0, 255, 255)
+        else:
+            color = (0, 100, 255)
+        conf_text = f"Confidence: {confidence * 100:.0f}%"
     
-    cv2.putText(frame, prediction, (40, 75), cv2.FONT_HERSHEY_SIMPLEX, 2.5, color, 4)
+    cv2.putText(frame, display_text, (40, 75), cv2.FONT_HERSHEY_SIMPLEX, 2.5, color, 4)
     
-    conf_text = f"Confidence: {confidence * 100:.0f}%"
-    cv2.putText(frame, conf_text, (140, 70), cv2.FONT_HERSHEY_SIMPLEX, 0.8, color, 2)
+    if conf_text:
+        cv2.putText(frame, conf_text, (180, 70), cv2.FONT_HERSHEY_SIMPLEX, 0.8, color, 2)
     
     return frame
 
@@ -293,7 +300,7 @@ def main():
     cv2.resizeWindow(WINDOW_NAME, DISPLAY_WIDTH, DISPLAY_HEIGHT)
     
     classifier = ASLClassifier()
-    smoother = PredictionSmoother(window_size=7, min_confidence=0.4, min_agreement=0.5)
+    smoother = PredictionSmoother(window_size=10, min_confidence=0.4, min_agreement=0.5)
     
     with WebcamCapture() as webcam, HandTracker(num_hands=1) as tracker:
         current_prediction = None
