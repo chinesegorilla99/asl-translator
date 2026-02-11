@@ -148,6 +148,15 @@ def normalize_landmarks(landmarks: np.ndarray) -> np.ndarray:
     else:
         normalized = centered
     
+    palm_vector = index_mcp - pinky_mcp
+    palm_vector_2d = palm_vector[:2]
+    palm_norm = np.linalg.norm(palm_vector_2d)
+    if palm_norm > 0.001:
+        angle = np.arctan2(palm_vector_2d[1], palm_vector_2d[0])
+        cos_a, sin_a = np.cos(-angle), np.sin(-angle)
+        rotation = np.array([[cos_a, -sin_a], [sin_a, cos_a]])
+        normalized[:, :2] = normalized[:, :2] @ rotation.T
+    
     return normalized.flatten().astype(np.float32)
 
 

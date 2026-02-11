@@ -1,7 +1,8 @@
 {
   "model_type": "random_forest",
   "train_accuracy": 1.0,
-  "test_accuracy": 0.96875,
+  "test_accuracy": 0.9718101842933282,
+  "val_accuracy": 0.9716930650684932,
   "num_classes": 36,
   "num_features": 63,
   "label_to_idx": {
@@ -44,5 +45,14 @@
   },
   "normalized": true,
   "normalization_method": "wrist_centered_palm_scaled",
-  "training_data": "kaggle+personal"
+  "training_data": "kaggle+personal",
+  "augmented": true,
+  "confusing_letters_boosted": [
+    "a",
+    "s",
+    "m",
+    "n",
+    "t"
+  ],
+  "early_stopping": true
 }

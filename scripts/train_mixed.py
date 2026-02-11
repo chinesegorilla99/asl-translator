@@ -61,30 +61,41 @@ def combine_datasets(kaggle_features, kaggle_labels, personal_features, personal
     return features, labels
 
 
-def augment_landmarks(landmarks, num_augments=3):
+def augment_landmarks(landmarks, num_augments=5):
     augmented = [landmarks]
     coords = landmarks.reshape(21, 3)
     
     for _ in range(num_augments):
         aug_coords = coords.copy()
         
-        angle = np.random.uniform(-15, 15) * np.pi / 180
+        angle = np.random.uniform(-20, 20) * np.pi / 180
         cos_a, sin_a = np.cos(angle), np.sin(angle)
         rotation_matrix = np.array([[cos_a, -sin_a], [sin_a, cos_a]])
         aug_coords[:, :2] = aug_coords[:, :2] @ rotation_matrix.T
         
-        scale = np.random.uniform(0.9, 1.1)
+        tilt_angle = np.random.uniform(-10, 10) * np.pi / 180
+        cos_t, sin_t = np.cos(tilt_angle), np.sin(tilt_angle)
+        tilt_matrix = np.array([[cos_t, -sin_t], [sin_t, cos_t]])
+        aug_coords[:, [0, 2]] = aug_coords[:, [0, 2]] @ tilt_matrix.T
+        
+        scale = np.random.uniform(0.85, 1.15)
         aug_coords *= scale
         
-        offset = np.random.uniform(-0.02, 0.02, size=3)
+        offset = np.random.uniform(-0.03, 0.03, size=3)
         aug_coords += offset
+        
+        brightness_shift = np.random.uniform(-0.05, 0.05)
+        aug_coords[:, 2] += brightness_shift
+        
+        noise = np.random.normal(0, 0.005, aug_coords.shape)
+        aug_coords += noise
         
         augmented.append(aug_coords.flatten().astype(np.float32))
     
     return augmented
 
 
-def apply_augmentation(features, labels, augment_confusing=True):
+def apply_augmentation(features, labels, augment_all=True, extra_for_confusing=True):
     aug_features = []
     aug_labels = []
     
@@ -92,8 +103,14 @@ def apply_augmentation(features, labels, augment_confusing=True):
         aug_features.append(feat)
         aug_labels.append(label)
         
-        if augment_confusing and label.lower() in CONFUSING_LETTERS:
-            for aug in augment_landmarks(feat, num_augments=3):
+        if augment_all:
+            num_aug = 5 if (extra_for_confusing and label.lower() in CONFUSING_LETTERS) else 2
+            for aug in augment_landmarks(feat, num_augments=num_aug):
+                if not np.array_equal(aug, feat):
+                    aug_features.append(aug)
+                    aug_labels.append(label)
+        elif extra_for_confusing and label.lower() in CONFUSING_LETTERS:
+            for aug in augment_landmarks(feat, num_augments=5):
                 if not np.array_equal(aug, feat):
                     aug_features.append(aug)
                     aug_labels.append(label)
@@ -117,10 +134,10 @@ def compute_class_weights(labels):
     return weights
 
 
-def train_model(features, labels, output_dir, use_augmentation=True, max_iterations=50):
+def train_model(features, labels, output_dir, use_augmentation=True, augment_all=True, max_iterations=50):
     if use_augmentation:
-        print("Applying data augmentation for confusing letters...")
-        features, labels = apply_augmentation(features, labels)
+        print("Applying data augmentation (rotation, tilt, scale, noise, brightness)...")
+        features, labels = apply_augmentation(features, labels, augment_all=augment_all)
         print(f"After augmentation: {len(features)} samples")
     
     print(f"\nDataset: {features.shape[0]} samples, {features.shape[1]} features")
