@@ -240,34 +240,27 @@ def draw_hand_skeleton(frame, landmarks):
     return frame
 
 
-CONFIDENCE_THRESHOLD = 0.90
-
-
 def draw_prediction(frame, prediction, confidence):
+    if prediction is None:
+        return frame
+    
     h, w = frame.shape[:2]
     
     overlay = frame.copy()
     cv2.rectangle(overlay, (0, 0), (w, 100), (30, 30, 30), -1)
     frame = cv2.addWeighted(overlay, 0.7, frame, 0.3, 0)
     
-    if prediction is None or confidence < CONFIDENCE_THRESHOLD:
-        display_text = "Unsure"
-        color = (100, 100, 100)
-        conf_text = f"Confidence: {confidence * 100:.0f}%" if confidence > 0 else ""
+    if confidence >= 0.90:
+        color = (0, 255, 0)
+    elif confidence >= 0.70:
+        color = (0, 255, 255)
     else:
-        display_text = prediction
-        if confidence >= 0.95:
-            color = (0, 255, 0)
-        elif confidence >= 0.90:
-            color = (0, 255, 255)
-        else:
-            color = (0, 100, 255)
-        conf_text = f"Confidence: {confidence * 100:.0f}%"
+        color = (0, 100, 255)
     
-    cv2.putText(frame, display_text, (40, 75), cv2.FONT_HERSHEY_SIMPLEX, 2.5, color, 4)
+    cv2.putText(frame, prediction, (40, 75), cv2.FONT_HERSHEY_SIMPLEX, 2.5, color, 4)
     
-    if conf_text:
-        cv2.putText(frame, conf_text, (180, 70), cv2.FONT_HERSHEY_SIMPLEX, 0.8, color, 2)
+    conf_text = f"Confidence: {confidence * 100:.0f}%"
+    cv2.putText(frame, conf_text, (180, 70), cv2.FONT_HERSHEY_SIMPLEX, 0.8, color, 2)
     
     return frame
 
